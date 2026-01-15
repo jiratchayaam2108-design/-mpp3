@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบช่วยเหลือนักเรียนกลุ่มเปราะบาง</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f0f0f0; }
+        .btn { padding: 20px 40px; font-size: 20px; background: #28a745; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        #status { margin: 20px; font-weight: bold; color: #555; }
+        #alertBox { display: none; background: red; color: white; padding: 30px; font-size: 30px; margin-top: 20px; animation: blink 1s infinite; }
+        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+    </style>
+</head>
+<body>
+    <h1>ระบบรับแจ้งเหตุฉุกเฉิน</h1>
+    <button class="btn" onclick="connect()">1. เชื่อมต่อบอร์ดนักเรียน</button>
+    <div id="status">สถานะ: รอการเชื่อมต่อ</div>
+    <div id="alertBox">🚨 ตรวจพบการขอความช่วยเหลือ! 🚨</div>
+
+    <script>
+        async function connect() {
+            const UART_SERVICE = 'e95d93af-251d-470a-a062-fa1922dfa9a8';
+            const UART_TX = 'e95d7140-251d-470a-a062-fa1922dfa9a8';
+
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'BBC micro:bit' }],
+                    optionalServices: [UART_SERVICE]
+                });
+
+                document.getElementById('status').innerText = "กำลังเชื่อมต่อกับ " + device.name;
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(UART_SERVICE);
+                const char = await service.getCharacteristic(UART_TX);
+
+                await char.startNotifications();
+                document.getElementById('status').innerText = "เชื่อมต่อแล้ว (เฝ้าระวังเหตุ...)";
+                document.getElementById('status').style.color = "green";
+
+                char.addEventListener('characteristicvaluechanged', (event) => {
+                    let val = new TextDecoder().decode(event.target.value);
+                    if (val.includes("HELP")) {
+                        document.getElementById('alertBox').style.display = "block";
+                        if ('vibrate' in navigator) navigator.vibrate([500, 200, 500]); // สั่นเตือนครู
+                        alert("มีนักเรียนกดปุ่มขอความช่วยเหลือ!");
+                    }
+                });
+            } catch (e) {
+                document.getElementById('status').innerText = "เชื่อมต่อไม่สำเร็จ: " + e;
+            }
+        }
+    </script>
+</body>
+</html>
