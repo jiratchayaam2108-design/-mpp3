@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>MPP3 Emergency</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:#f2f6ff;
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.card{
+  width:420px;
+  background:#ffffff;
+  padding:30px;
+  border-radius:20px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.15);
+  text-align:center;
+}
+
+h1{
+  color:#1a73e8;
+  margin-bottom:10px;
+}
+
+button{
+  background:#1a73e8;
+  color:white;
+  border:none;
+  padding:14px 26px;
+  border-radius:30px;
+  font-size:16px;
+  cursor:pointer;
+}
+
+#status{
+  margin-top:15px;
+  font-weight:bold;
+}
+
+#alert{
+  margin-top:25px;
+  padding:20px;
+  border:2px dashed red;
+  border-radius:15px;
+  color:red;
+  font-size:18px;
+  min-height:90px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+  <h1>🚨 ระบบแจ้งเหตุฉุกเฉิน</h1>
+  <p>โรงเรียนมัธยมพัชรกิติยาภา ๓ สุราษฎร์ธานี</p>
+
+  <button onclick="connect()">เชื่อมต่อ micro:bit</button>
+
+  <div id="status">สถานะ: ยังไม่เชื่อมต่อ</div>
+  <div id="alert">รอการแจ้งเหตุ…</div>
+</div>
+
+<script>
+let txChar;
+
+async function connect(){
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      filters:[{ namePrefix:'BBC micro:bit' }],
+      optionalServices:['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+    });
+
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(
+      '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
+    );
+
+    // รับข้อมูลจาก micro:bit (TX)
+    txChar = await service.getCharacteristic(
+      '6e400002-b5a3-f393-e0a9-e50e24dcca9e'
+    );
+
+    await txChar.startNotifications();
+
+    txChar.addEventListener('characteristicvaluechanged', e => {
+      const msg = new TextDecoder().decode(e.target.value).trim();
+      console.log(msg);
+
+      // รูปแบบ: TEN,สมชาย,02/3
+      const data = msg.split(",");
+
+      if(data.length >= 3){
+        const name = data[1];
+        const pos = data[2];   // 02/3
+
+        const building = pos[0];
+        const floor = pos[2];
+
+        document.getElementById("alert").innerHTML =
+          "🚨 <b>แจ้งเหตุฉุกเฉิน</b><br><br>" +
+          "👤 นักเรียน: " + name + "<br>" +
+          "📍 ตำแหน่ง: อาคาร " + building +
+          " ชั้น " + floor;
+      }
+    });
+
+    document.getElementById("status").innerText =
+      "สถานะ: ✅ เชื่อมต่อแล้ว";
+  }
+  catch(err){
+    document.getElementById("status").innerText =
+      "สถานะ: ❌ ใช้ Google Chrome เท่านั้น";
+    console.error(err);
+  }
+}
+</script>
+
+</body>
+</html>
