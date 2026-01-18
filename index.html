@@ -1,70 +1,87 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <title>micro:bit Web Bluetooth</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    button {
-      font-size: 18px;
-      padding: 10px 20px;
-    }
-    #status {
-      margin-top: 20px;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ระบบแจ้งเหตุ micro:bit</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  text-align: center;
+  margin-top: 50px;
+}
+button {
+  font-size: 18px;
+  padding: 12px 25px;
+}
+#log {
+  margin-top: 30px;
+  font-size: 22px;
+  font-weight: bold;
+}
+.emergency { color: red; }
+.help { color: orange; }
+.ok { color: green; }
+</style>
 </head>
+
 <body>
 
-  <h1>เชื่อมต่อ micro:bit (Web Bluetooth)</h1>
-  <button onclick="connect()">🔵 เชื่อมต่อ micro:bit</button>
-  <div id="status">สถานะ: ยังไม่เชื่อมต่อ</div>
+<h1>🚨 ระบบช่วยเหลือและแจ้งเหตุฉุกเฉิน</h1>
+<button onclick="connect()">🔵 เชื่อมต่อ micro:bit</button>
+
+<div id="log">สถานะ: ยังไม่เชื่อมต่อ</div>
 
 <script>
-let device;
-let server;
+const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // รับจาก micro:bit
 
 async function connect() {
   try {
-    document.getElementById("status").textContent = "กำลังค้นหาอุปกรณ์...";
-
-    device = await navigator.bluetooth.requestDevice({
+    const device = await navigator.bluetooth.requestDevice({
       filters: [{ namePrefix: "BBC micro:bit" }],
-      optionalServices: ['battery_service']
+      optionalServices: [UART_SERVICE]
     });
 
-    device.addEventListener('gattserverdisconnected', onDisconnected);
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(UART_SERVICE);
+    const tx = await service.getCharacteristic(UART_TX);
 
-    server = await device.gatt.connect();
+    await tx.startNotifications();
+    tx.addEventListener("characteristicvaluechanged", onData);
 
-    document.getElementById("status").textContent =
+    document.getElementById("log").textContent =
       "✅ เชื่อมต่อแล้ว: " + device.name;
 
-    // อ่านค่าแบตเตอรี่เป็นตัวอย่าง
-    const service = await server.getPrimaryService('battery_service');
-    const char = await service.getCharacteristic('battery_level');
-    const value = await char.readValue();
-
-    document.getElementById("status").textContent +=
-      " | 🔋 แบตเตอรี่ " + value.getUint8(0) + "%";
-
-  } catch (error) {
-    document.getElementById("status").textContent =
-      "❌ Error: " + error.message;
-    console.error(error);
+  } catch (err) {
+    document.getElementById("log").textContent =
+      "❌ Error: " + err.message;
   }
 }
 
-function onDisconnected() {
-  document.getElementById("status").textContent =
-    "⚠️ micro:bit หลุดการเชื่อมต่อ";
+function onData(event) {
+  const text = new TextDecoder().decode(event.target.value).trim();
+  const log = document.getElementById("log");
+
+  if (text === "EMERGENCY") {
+    log.textContent = "🚨 แจ้งเหตุฉุกเฉิน!";
+    log.className = "emergency";
+  } 
+  else if (text === "HELP") {
+    log.textContent = "🆘 ขอความช่วยเหลือ";
+    log.className = "help";
+  } 
+  else if (text === "OK") {
+    log.textContent = "✅ ปลอดภัยแล้ว";
+    log.className = "ok";
+  } 
+  else {
+    log.textContent = "📩 " + text;
+    log.className = "";
+  }
 }
 </script>
 
 </body>
 </html>
+
