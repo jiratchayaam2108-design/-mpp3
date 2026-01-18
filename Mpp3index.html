@@ -3,89 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบช่วยเหลือฉุกเฉิน</title>
+    <title>ระบบรับสัญญาณแจ้งเหตุ - Help System</title>
     <style>
-        body { font-family: 'Arial', sans-serif; text-align: center; padding: 50px; background-color: #f8f9fa; }
-        .status-box { padding: 20px; border-radius: 15px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; }
-        #connectBtn { background-color: #007bff; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 10px; cursor: pointer; }
-        #alertDisplay { display: none; margin-top: 30px; padding: 40px; background-color: #ff4d4d; color: white; border-radius: 20px; font-size: 40px; font-weight: bold; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.05);} 100% {transform: scale(1);} }
+        body { font-family: 'Tahoma', sans-serif; text-align: center; background-color: #e3f2fd; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        button { background-color: #007bff; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 10px; cursor: pointer; width: 100%; }
+        #status { margin: 20px 0; color: #666; font-size: 14px; }
+        #emergency { display: none; background-color: #ff5252; color: white; padding: 20px; border-radius: 15px; margin-top: 20px; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
-    <div class="status-box">
-        <h1>ระบบรับสัญญาณฉุกเฉิน</h1>
-        <button id="connectBtn">คลิกเพื่อเชื่อมต่อบอร์ดนักเรียน</button>
-        <p id="statusText">สถานะ: ยังไม่ได้เชื่อมต่อ</p>
+
+<div class="card">
+    <h2>ระบบช่วยเหลือฉุกเฉิน</h2>
+    <p>สำหรับนักเรียนกลุ่มเปราะบาง</p>
+    
+    <button onclick="onConnectClick()">เชื่อมต่อกับ micro:bit</button>
+    <div id="status">สถานะ: รอการเชื่อมต่อ...</div>
+    
+    <div id="emergency">
+        <h1>🚨 มีการแจ้งเหตุ!</h1>
+        <p>นักเรียนกำลังขอความช่วยเหลือ</p>
+        <button onclick="resetAlert()" style="background:#fff; color:#ff5252; margin-top:10px;">รับทราบแล้ว</button>
     </div>
+</div>
 
-    <div id="alertDisplay">🚨 มีการขอความช่วยเหลือ! 🚨</div>
+<script>
+    // UUID มาตรฐานของ micro:bit UART
+    const UART_SERVICE_UUID = 'e95d93af-251d-470a-a062-fa1922dfa9a8';
+    const UART_TX_CHARACTERISTIC_UUID = 'e95d7140-251d-470a-a062-fa1922dfa9a8';
 
-    <script>
-        const UART_SERVICE_UUID = 'e95d93af-251d-470a-a062-fa1922dfa9a8';
-        const UART_TX_CHARACTERISTIC_UUID = 'e95d7140-251d-470a-a062-fa1922dfa9a8';
+    async function onConnectClick() {
+        try {
+            // แก้ไข filter เป็นชื่อเฉพาะของคุณ
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: 'BBC micro:bit [vivig]' }], 
+                optionalServices: [UART_SERVICE_UUID]
+            });
 
-        const btn = document.getElementById('connectBtn');
-        const status = document.getElementById('statusText');
-        const alertBox = document.getElementById('alertDisplay');
+            document.getElementById('status').innerText = "กำลังเชื่อมต่อ...";
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(UART_SERVICE_UUID);
+            const characteristic = await server.getPrimaryService(UART_SERVICE_UUID).getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
 
-        btn.addEventListener('click', async () => {
-            try {
-                // ขอเชื่อมต่อ
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'BBC micro:bit' }],
-                    optionalServices: [UART_SERVICE_UUID]
-                });
+            await characteristic.startNotifications();
+            document.getElementById('status').innerText = "เชื่อมต่อสำเร็จ! พร้อมรับสัญญาณ";
+            document.getElementById('status').style.color = "green";
 
-                status.innerText = "กำลังเชื่อมต่อ...";
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(UART_SERVICE_UUID);
-                const characteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
-
-                // เริ่มรับข้อมูล
-                await characteristic.startNotifications();
-                status.innerText = "เชื่อมต่อสำเร็จ - กำลังเฝ้าระวังภัย ✅";
-                status.style.color = "green";
-                btn.style.display = "none";
-
-                characteristic.addEventListener('characteristicvaluechanged', (event) => {
-                    let receivedData = new TextDecoder().decode(event.target.value);
-                    console.log("Data:", receivedData);
-
-                    // ถ้าได้รับคำว่า HELP
-                    if (receivedData.includes("HELP")) {
-                        triggerAlert();
-                    }
-
-        function triggerAlert() {
-            alertBox.style.display = "block";
-            // สั่นมือถือ (สำหรับ Android)
-            if ('vibrate' in navigator) {
-                navigator.vibrate([500, 200, 500, 200, 500]);
-            }
-            // ส่งเสียงแจ้งเตือนบนมือถือครู
-            const audio = new Audio('actions.google.com');
-            audio.play();
+            characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+        } catch (error) {
+            // แก้ไขข้อผิดพลาดไวยากรณ์ JavaScript
+            alert("ข้อผิดพลาดในการเชื่อมต่อ: " + error); 
         }
-    </script>
-</body>
-</html>
-                await char.startNotifications();
-                document.getElementById('status').innerText = "เชื่อมต่อแล้ว (เฝ้าระวังเหตุ...)";
-                document.getElementById('status').style.color = "green";
+    }
 
-                char.addEventListener('characteristicvaluechanged', (event) => {
-                    let val = new TextDecoder().decode(event.target.value);
-                    if (val.includes("HELP")) {
-                        document.getElementById('alertBox').style.display = "block";
-                        if ('vibrate' in navigator) navigator.vibrate([500, 200, 500]); // สั่นเตือนครู
-                        alert("มีนักเรียนกดปุ่มขอความช่วยเหลือ!");
-                    }
-                });
-            } catch (e) {
-                document.getElementById('status').innerText = "เชื่อมต่อไม่สำเร็จ: " + e;
-            }
+    function handleNotifications(event) {
+        let value = new TextDecoder().decode(event.target.value);
+        console.log("Received Data: ", value);
+
+        // ดักจับค่า "ten:0" ที่ส่งมาจาก micro:bit
+        if (value.includes("ten")) {
+            showEmergency();
         }
-    </script>
+    }
+
+    function showEmergency() {
+        document.getElementById('emergency').style.display = 'block';
+        if ('vibrate' in navigator) {
+            navigator.vibrate([500, 200, 500, 200, 500]); // สั่นแจ้งเตือนครู
+        }
+        // แก้ไข URL เสียงให้ถูกต้อง
+        let audio = new Audio('https://actions.google.com');
+        audio.play();
+    }
+
+    function resetAlert() {
+        document.getElementById('emergency').style.display = 'none';
+    }
+</script>
+
 </body>
 </html>
