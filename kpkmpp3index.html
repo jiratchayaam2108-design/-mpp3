@@ -1,0 +1,54 @@
+<script>
+let txChar;
+
+async function connect(){
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      filters:[{ namePrefix:'BBC micro:bit' }],
+      optionalServices:['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+    });
+
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(
+      '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
+    );
+
+    // รับข้อมูลจาก micro:bit
+    txChar = await service.getCharacteristic(
+      '6e400002-b5a3-f393-e0a9-e50e24dcca9e'
+    );
+
+    await txChar.startNotifications();
+
+    txChar.addEventListener('characteristicvaluechanged', e => {
+      const msg = new TextDecoder().decode(e.target.value).trim();
+      console.log("รับจาก micro:bit:", msg);
+
+      // คาดหวังข้อความ: TEN,สมชาย,02/3
+      const data = msg.split(",");
+
+      if(data.length >= 3){
+        const name = data[1];
+        const pos = data[2]; // 02/3
+
+        const building = pos[0];
+        const floor = pos[2];
+
+        document.getElementById("alertBox").innerHTML =
+          "🚨 <b>แจ้งเหตุฉุกเฉิน</b><br>" +
+          "👤 นักเรียน: " + name + "<br>" +
+          "📍 ตำแหน่ง: อาคาร " + building +
+          " ชั้น " + floor;
+      }
+    });
+
+    document.getElementById("status").innerHTML =
+      "สถานะ: ✅ เชื่อมต่อ micro:bit สำเร็จ";
+  }
+  catch(err){
+    document.getElementById("status").innerHTML =
+      "สถานะ: ❌ เชื่อมต่อไม่สำเร็จ (ใช้ Chrome)";
+    console.error(err);
+  }
+}
+</script>
