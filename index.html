@@ -7,50 +7,50 @@
 <style>
 body{
   margin:0;
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(120deg,#fff8c6,#e3f2fd);
   height:100vh;
   display:flex;
   justify-content:center;
   align-items:center;
-  background: linear-gradient(135deg,#fff9c4,#e3f2fd);
-  font-family: "Segoe UI", sans-serif;
 }
 
 .card{
   background:#ffffff;
-  width:440px;
+  width:420px;
   padding:40px;
   border-radius:30px;
   text-align:center;
-  box-shadow:0 20px 40px rgba(0,0,0,.15);
+  box-shadow:0 15px 40px rgba(0,0,0,0.15);
 }
 
 h1{
   color:#f4b400;
+  margin-bottom:5px;
   font-size:48px;
-  margin:0;
 }
 
-h2{
+.subtitle{
   color:#1e88e5;
-  font-size:22px;
-  margin:10px 0;
+  font-size:20px;
+  font-weight:bold;
 }
 
 .school{
-  color:#333;
-  font-size:14px;
-  margin-bottom:25px;
+  margin-top:5px;
+  color:#555;
 }
 
 button{
-  background: linear-gradient(90deg,#fdd835,#42a5f5);
-  border:none;
-  color:#000;
-  padding:16px 34px;
+  margin-top:25px;
+  padding:15px 35px;
   font-size:18px;
+  border:none;
   border-radius:40px;
   cursor:pointer;
-  transition:.3s;
+  background: linear-gradient(90deg,#fdd835,#42a5f5);
+  color:#000;
+  transition:0.3s;
 }
 
 button:hover{
@@ -58,23 +58,23 @@ button:hover{
 }
 
 #status{
-  margin-top:18px;
+  margin-top:15px;
   font-weight:bold;
 }
 
 .alert-box{
-  margin-top:28px;
-  padding:22px;
-  border-radius:18px;
-  border:3px dashed #ff5252;
-  color:#d50000;
+  margin-top:25px;
+  border:3px dashed red;
+  padding:25px;
+  border-radius:20px;
+  color:red;
   font-size:22px;
 }
 
 .footer{
-  margin-top:20px;
+  margin-top:25px;
   font-size:12px;
-  color:#777;
+  color:#888;
 }
 </style>
 </head>
@@ -83,10 +83,8 @@ button:hover{
 
 <div class="card">
   <h1>MPP3</h1>
-  <h2>ระบบช่วยเหลือและแจ้งเหตุฉุกเฉิน</h2>
-  <div class="school">
-    โรงเรียนมัธยมพัชรกิติยาภา ๓ สุราษฎร์ธานี
-  </div>
+  <div class="subtitle">ระบบช่วยเหลือและแจ้งเหตุฉุกเฉิน</div>
+  <div class="school">โรงเรียนมัธยมพัชรกิติยาภา ๓ สุราษฎร์ธานี</div>
 
   <button onclick="connect()">🔵 เชื่อมต่อ micro:bit</button>
 
@@ -104,53 +102,52 @@ button:hover{
 <script>
 let rxChar;
 
-// UUID ของ Bluetooth UART
-const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-const UART_RX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
-
 async function connect(){
-  try{
-    if(!navigator.bluetooth){
-      document.getElementById("status").innerText =
-        "❌ เบราว์เซอร์ไม่รองรับ Bluetooth";
-      return;
-    }
+  if(!navigator.bluetooth){
+    document.getElementById("status").innerHTML =
+      "❌ เบราว์เซอร์ไม่รองรับ Bluetooth";
+    return;
+  }
 
+  try{
     const device = await navigator.bluetooth.requestDevice({
-      filters:[{namePrefix:"BBC micro:bit"}],
-      optionalServices:[UART_SERVICE]
+      filters: [{ namePrefix: "BBC micro:bit" }],
+      optionalServices: ["6e400001-b5a3-f393-e0a9-e50e24dcca9e"]
     });
 
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(UART_SERVICE);
+    const service = await server.getPrimaryService(
+      "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+    );
 
-    rxChar = await service.getCharacteristic(UART_RX);
+    rxChar = await service.getCharacteristic(
+      "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+    );
+
     await rxChar.startNotifications();
+    rxChar.addEventListener("characteristicvaluechanged", receiveData);
 
-    rxChar.addEventListener("characteristicvaluechanged", e=>{
-      const msg = new TextDecoder().decode(e.target.value).trim();
-      console.log("รับ:", msg);
-
-      if(msg === "HELP"){
-        document.getElementById("alert").innerText =
-          "🚨 แจ้งเหตุฉุกเฉินแล้ว!";
-      }else{
-        document.getElementById("alert").innerText =
-          "📩 ข้อความจากบอร์ด: " + msg;
-      }
-    });
-
-    document.getElementById("status").innerText =
+    document.getElementById("status").innerHTML =
       "✅ เชื่อมต่อ micro:bit สำเร็จ";
   }
   catch(err){
+    document.getElementById("status").innerHTML =
+      "❌ เชื่อมต่อไม่สำเร็จ (เปิดผ่าน Chrome + localhost)";
     console.error(err);
-    document.getElementById("status").innerText =
-      "❌ เชื่อมต่อไม่สำเร็จ (เปิดผ่าน Chrome เท่านั้น)";
+  }
+}
+
+function receiveData(event){
+  const text = new TextDecoder().decode(event.target.value).trim();
+  console.log("รับค่า:", text);
+
+  if(text === "ten" || text === "HELP"){
+    document.getElementById("alert").innerHTML =
+      "🚨 แจ้งเหตุฉุกเฉินแล้ว!";
+    document.getElementById("alert").style.background = "#ffebee";
   }
 }
 </script>
 
 </body>
 </html>
-
