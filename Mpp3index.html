@@ -1,99 +1,47 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-<meta charset="UTF-8">
-<title>MPP3 Emergency System</title>
-
-<style>
-body{
-  font-family: Arial, sans-serif;
-  background: #eef5e6;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-.card{
-  background: #fff;
-  padding: 40px;
-  border-radius: 25px;
-  width: 420px;
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-button{
-  background: linear-gradient(90deg,#f6d365,#5ac8fa);
-  border: none;
-  padding: 15px 30px;
-  font-size: 18px;
-  border-radius: 30px;
-  cursor: pointer;
-}
-#status{
-  margin-top: 15px;
-  font-weight: bold;
-}
-#alert{
-  margin-top: 25px;
-  border: 2px dashed red;
-  padding: 20px;
-  color: red;
-  font-size: 22px;
-}
-</style>
-</head>
-
-<body>
-<div class="card">
-  <h1 style="color:#f4b400;">MPP3</h1>
-  <h3 style="color:#2979ff;">ระบบช่วยเหลือและแจ้งเหตุฉุกเฉิน</h3>
-
-  <button onclick="connect()">🔵 เชื่อมต่อ micro:bit</button>
-
-  <div id="status">สถานะ: ยังไม่เชื่อมต่อ</div>
-  <div id="alert">รอการแจ้งเหตุ...</div>
-</div>
-
 <script>
+const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_RX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
 let rxChar;
 
 async function connect(){
-  try{
+
+  if (!navigator.bluetooth) {
+    document.getElementById("status").innerHTML =
+      "❌ Browser นี้ไม่รองรับ Bluetooth";
+    return;
+  }
+
+  try {
     const device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'BBC micro:bit' }],
-      optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+      filters: [{ namePrefix: "BBC micro:bit" }],
+      optionalServices: [UART_SERVICE]
     });
 
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(
-      '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
-    );
-
-    rxChar = await service.getCharacteristic(
-      '6e400003-b5a3-f393-e0a9-e50e24dcca9e'
-    );
+    const service = await server.getPrimaryService(UART_SERVICE);
+    rxChar = await service.getCharacteristic(UART_RX);
 
     await rxChar.startNotifications();
-    rxChar.addEventListener('characteristicvaluechanged', e => {
-      const msg = new TextDecoder().decode(e.target.value).trim();
-      console.log("รับค่า:", msg);
-
-      if(msg === "ten"){
-        document.getElementById("alert").innerHTML =
-          "🚨 แจ้งเหตุฉุกเฉินแล้ว!";
-      }
-    });
+    rxChar.addEventListener("characteristicvaluechanged", handleData);
 
     document.getElementById("status").innerHTML =
-      "สถานะ: ✅ เชื่อมต่อสำเร็จ";
-  }
-  catch(err){
+      "✅ เชื่อมต่อ micro:bit สำเร็จ";
+
+  } catch (err) {
     document.getElementById("status").innerHTML =
-      "สถานะ: ❌ Bluetooth ไม่รองรับหรือยังไม่อนุญาต";
+      "❌ เชื่อมต่อไม่สำเร็จ";
     console.error(err);
   }
 }
-</script>
 
-</body>
-</html>
+function handleData(e) {
+  const msg = new TextDecoder().decode(e.target.value).trim();
+  console.log("รับ:", msg);
+
+  if (msg === "ten") {
+    document.getElementById("alert").innerHTML =
+      "🚨 แจ้งเหตุฉุกเฉินแล้ว!";
+  }
+}
+</script>
